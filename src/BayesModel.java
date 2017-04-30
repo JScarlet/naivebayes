@@ -1,28 +1,66 @@
+import org.annolab.tt4j.TokenHandler;
+import org.annolab.tt4j.TreeTaggerException;
+import org.annolab.tt4j.TreeTaggerWrapper;
+
 import java.io.*;
 import java.util.*;
+import java.util.regex.Pattern;
 
 /**
  * Created by JScarlet on 2017/3/15.
  */
 public class BayesModel {
+    private HashMap<List<String>, Integer> texts = new HashMap<>();
+    private List<String> text = new ArrayList<>();
     public BayesModel(){}
+
+    private HashMap<String, Integer> titleMap = new HashMap<>();
+    private HashMap<String, Integer> contextMap = new HashMap<>();
+
+    public void preTreat(List<CodeSnippet> codeSnippets){
+        for(CodeSnippet codeSnippet : codeSnippets){
+
+        }
+    }
 
     public void extractMajorWords(List<CodeSnippet> codeSnippets){
         HashMap<String, int[]> wordCount = new HashMap<>();
         HashMap<String, Integer> codeSet = new HashMap<>();
         int[] indexWordCount;
-        int[] indexCount = new int[8];
+        int[] indexCount = new int[9];
         String str = "";
+
         System.out.println("正在提取特征词...");
         for (CodeSnippet codeSnippet : codeSnippets) {
+            int n1 = 0, n2 = 0, n3 = 0;
             int type = codeSnippet.getType();
-            str = codeSnippet.getAboveContext() + " " + codeSnippet.getBelowContext() + " " + codeSnippet.getTitle();
-//            System.out.println(str);
-            if(!codeSet.keySet().contains(str)){
-                codeSet.put(str, 1);
+            for(int i = 0; i < codeSnippets.indexOf(codeSnippet); i++){
+                if(codeSnippet.getAboveContext().equals(codeSnippets.get(i).getAboveContext()) && type == codeSnippets.get(i).getType()){
+                    n1 = 1;
+                }
+                if(codeSnippet.getBelowContext().equals(codeSnippets.get(i).getBelowContext()) && type == codeSnippets.get(i).getType()){
+                    n2 = 1;
+                }
+                if(codeSnippet.getTitle().equals(codeSnippets.get(i).getTitle()) && type == codeSnippets.get(i).getType()){
+                    n3 = 1;
+                }
+                if(n1 == 1 && n2 == 1 && n3 ==1){
+                    break;
+                }
+            }
 
-                String[] words = str.split("\\s+");
-                for(String word: words){
+            str = (n1 == 0? codeSnippet.getAboveContext() : "") + " " + (n2 == 0? codeSnippet.getBelowContext() : "") + " " + (n3 == 0? codeSnippet.getTitle() : "");
+
+            if(!str.equals("")){
+                String[] words = preTreatCode(str.split("\\s+"));
+                text = tt4jTreat(words);
+                texts.put(text, type);
+//               System.out.println(words.length + " " + text.size());
+           /*    for(int i = 0; i < text.size(); i++){
+                   System.out.println(words[i] + "  " + text.get(i));
+               }*/
+
+                for(String word: text){
                     word = word.toLowerCase();
                     indexCount[type]++;
                     if(wordCount.containsKey(word)){
@@ -30,11 +68,13 @@ public class BayesModel {
                         temp[type]++;
                         wordCount.put(word, temp);
                     }else {
-                        indexWordCount = new int[8];
+                        indexWordCount = new int[9];
                         indexWordCount[type] = 1;
                         wordCount.put(word, indexWordCount);
                     }
                 }
+
+
        /*     for(String key: wordCount.keySet()){
                 int length = wordCount.get(key).length;
                 for(int i = 1; i < length; i++){
@@ -52,6 +92,61 @@ public class BayesModel {
         System.out.println("extracting finished");
     }
 
+    private String[] preTreatCode(String[] words){
+        for(int i = 0; i < words.length; i++){
+
+            words[i] = words[i].replaceAll("[^a-zA-Z0-9\\-\\#\\'\\/\\:\\<\\>\\+\\.\\s+]", "");
+            String pattern1 = "(\\w|\\W)+\\.";
+            String pattern3 = "(\\w|\\W)+\\:";
+            boolean isMatch1 = Pattern.matches(pattern1, words[i]);
+            boolean isMatch3 = Pattern.matches(pattern3, words[i]);
+            if(isMatch1 || isMatch3){
+                words[i] = words[i].replace(String.valueOf(words[i].charAt(words[i].length() - 1)), "");
+            }
+            String pattern2 = "\\.(\\w|\\W)+";
+            String pattern4 = "\\:(\\w|\\W)+";
+            boolean isMatch2 = Pattern.matches(pattern2, words[i]);
+            boolean isMatch4 = Pattern.matches(pattern4, words[i]);
+            if(isMatch2 || isMatch4){
+                words[i] = words[i].replace(String.valueOf(words[i].charAt(0)), "");
+            }
+        //    System.out.println(word);
+        }
+        return words;
+    }
+
+    private List<String> tt4jTreat(String[] words){
+     //   String[] result = new String[words.length];
+        List<String> result = new ArrayList<>();
+        System.setProperty("treetagger.home", "/TreeTagger");
+        TreeTaggerWrapper tt = new TreeTaggerWrapper();
+        try {
+            tt.setModel("/TreeTagger/lib/english-utf8.par:iso8859-1");
+
+//            tt.setHandler((o, s, s1) -> System.out.println(o + "\t" + s + "\t" + s1));
+            tt.setHandler(new TokenHandler<String>() {
+                @Override
+                public void token(String o, String s, String s1) {
+                //    System.out.println(o + "\t" + s + "\t" + s1);
+                    if(s1.equals("@card@")){
+                        result.add(o);
+                    }else {
+                        result.add(s1);
+                    }
+
+                }
+
+            });
+            //    tt.process(asList(new String[]{"your", "cannot", "simpler", "exceptions"}));
+            tt.process(words);
+        } catch (IOException | TreeTaggerException e) {
+            e.printStackTrace();
+        } finally {
+            tt.destroy();
+        }
+        return result;
+    }
+
     private double mutualInfo(int n, int nij, int ni, int nj){
 //        System.out.println("n: " + n + " nij: " + nij + " ni: " + ni + " nj: " + nj);
         return ((nij * 1.0/ n) * (Math.log(n * (nij + 1) * 1.0 / (ni * nj)) / Math.log(2)));
@@ -65,7 +160,7 @@ public class BayesModel {
             totalCount += indexCount[i];
         }
         for(String key : wordCount.keySet()){
-            double[] indexMuInfo = new double[8];
+            double[] indexMuInfo = new double[9];
             int[] temp = wordCount.get(key);
             int singleWordCount = 0;
             for (int i = 1; i < temp.length; i++) {
@@ -106,9 +201,41 @@ public class BayesModel {
                 }
             }
             sortedWordsList.add(indexSortedWord);
-            System.out.println("将特征词写入文件...");
-            writeFeatureInFile(sortedWordsList);
+
         }
+        System.out.println("去除一些无效的特征词");
+        sortedWordsList = removeCommon(sortedWordsList);
+
+        System.out.println("将特征词写入文件...");
+        writeFeatureInFile(sortedWordsList);
+    }
+
+    private List<List<String>> removeCommon(List<List<String>> sortedWordsList){
+        HashMap<String, Integer> times = new HashMap<>();
+        for(int i = 0; i < sortedWordsList.size(); i++){
+            for(String str: sortedWordsList.get(i)){
+                if(!times.containsKey(str)){
+                    times.put(str, 1);
+                }else {
+                    int time = times.get(str);
+                    time++;
+                    times.put(str, time);
+                }
+            }
+        }
+
+        Iterator iterator = times.entrySet().iterator();
+        while (iterator.hasNext()){
+            Map.Entry entry = (Map.Entry) iterator.next();
+            if((int)entry.getValue() >= 6){
+                for(List<String> list: sortedWordsList){
+                    if(list.contains(entry.getKey())){
+                        list.remove(entry.getKey());
+                    }
+                }
+            }
+        }
+        return sortedWordsList;
     }
 
     private String[][] wordSort(HashMap<String, double[]> muInfoMap, int index){
@@ -196,20 +323,24 @@ public class BayesModel {
         return null;
     }
 
-    public void trainModel(Set<String> featureWords, List<CodeSnippet> codeSnippets){
+    public void trainModel(Set<String> featureWords){
         HashMap<String, int[]> wordCount = new HashMap<>();
-        HashMap<String, Integer> codeSet = new HashMap<>();
+//        HashMap<String, Integer> codeSet = new HashMap<>();
         int[] indexWordCount;
-        int[] indexCount = new int[8];
-        String str;
+        int[] indexCount = new int[9];
+//        String str;
         System.out.println("开始训练模型...");
-        for(CodeSnippet codeSnippet : codeSnippets){
-            int type = codeSnippet.getType();
-            str = codeSnippet.getAboveContext() + " " + codeSnippet.getBelowContext() + " " + codeSnippet.getTitle();
-            if(!codeSet.keySet().contains(str)){
-                codeSet.put(str, 1);
+        Iterator iterator = texts.entrySet().iterator();
+        while(iterator.hasNext()){
+            Map.Entry entry = (Map.Entry) iterator.next();
+            int type = (int) entry.getValue();
+//            str = codeSnippet.getAboveContext() + " " + codeSnippet.getBelowContext() + " " + codeSnippet.getTitle();
+//            if(!codeSet.keySet().contains(str)){
+//                codeSet.put(str, 1);
 
-                String[] words = str.split("\\s+");
+            List<String> words = (List<String>) entry.getKey();
+//                String[] words = preTreatCode(str.split("\\s+"));
+//                List<String> text = tt4jTreat(words);
                 for(String word: words){
                     word = word.toLowerCase();
                     if(featureWords.contains(word)){
@@ -219,13 +350,13 @@ public class BayesModel {
                             temp[type]++;
                             wordCount.put(word, temp);
                         }else {
-                            indexWordCount = new int[8];
+                            indexWordCount = new int[9];
                             indexWordCount[type] = 1;
                             wordCount.put(word, indexWordCount);
                         }
                     }
                 }
-            }
+//            }
 
         }
         System.out.println("训练完毕，开始写入文件中...");
@@ -277,7 +408,7 @@ public class BayesModel {
                 String line;
                 while((line = bufferedReader.readLine()) != null){
                     String[] wordScores = line.split("\\s+");
-                    double[] scores = new double[8];
+                    double[] scores = new double[9];
                     String word = wordScores[0];
                     for(int i = 1; i < wordScores.length; i++){
                         scores[i] = Double.parseDouble(wordScores[i]);
@@ -304,11 +435,12 @@ public class BayesModel {
         System.out.println("开始预测...");
 
         for(CodeSnippet codeSnippet: testSet){
-            double[] preValues = new double[8];
+            double[] preValues = new double[9];
             int type = codeSnippet.getType();
             String str = codeSnippet.getAboveContext() + " " + codeSnippet.getBelowContext() + " " + codeSnippet.getTitle();
-            String[] words = str.split("\\s+");
-            for(String word: words){
+            String[] words = preTreatCode(str.split("\\s+"));
+            List<String> text = tt4jTreat(words);
+            for(String word: text){
                 if(featureWords.contains(word)){
                     double[] tempScore = model.get(word);
                     for(int i = 1; i < tempScore.length; i++){

@@ -8,7 +8,7 @@ import java.io.IOException;
  */
 public class TT4jTest {
     public static void main(String[] args){
-        String str = "it is best";
+        String str = "C:\\Users\\JScarlet\\Downloads";
         String[] temp = str.split(" ");
         System.setProperty("treetagger.home", "/TreeTagger");
         TreeTaggerWrapper tt = new TreeTaggerWrapper();

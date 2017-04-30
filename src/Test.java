@@ -14,45 +14,47 @@ public class Test {
         List<CodeSnippet> trainSet = new ArrayList<>();
         List<CodeSnippet> testSet = new ArrayList<>();
         int[] index = new int[8];
-        int size = 900;
+        int size = 800;
         Test test = new Test();
-        codeSnippets = Utils.shuffle(test.readData());
+        for(int mm = 0; mm < 1; mm++){
+            codeSnippets = Utils.shuffle(test.readData());
 //        System.out.println("this is train set id:");
-        for(int i = 0; i < size; i++){
-            trainSet.add(codeSnippets.get(i));
+            for(int i = 0; i < size; i++){
+                trainSet.add(codeSnippets.get(i));
 //            System.out.println(trainSet.get(i).getId());
-        }
-        for(CodeSnippet code: trainSet){
-            for(int i = 1; i < index.length; i++){
-                if(code.getType() == i){
-                    index[i]++;
+            }
+            for(CodeSnippet code: trainSet){
+                for(int i = 1; i < index.length; i++){
+                    if(code.getType() == i){
+                        index[i]++;
+                    }
                 }
             }
-        }
 
-        for(int i = 1; i < index.length; i++){
-            System.out.println("type " + i + " number: " + index[i]);
-        }
+            for(int i = 1; i < index.length; i++){
+                System.out.println("type " + i + " number: " + index[i]);
+            }
 
 //        System.out.println("this is test set id:");
-        for(int i = size; i < codeSnippets.size(); i++){
-            testSet.add(codeSnippets.get(i));
+            for(int i = size; i < codeSnippets.size(); i++){
+                testSet.add(codeSnippets.get(i));
 //            System.out.println(testSet.get(i - size).getId());
-        }
+            }
 
-        BayesModel model = new BayesModel();
-        model.extractMajorWords(trainSet);
-        Set<String> featureWords = model.loadFeatureWords("feature words.txt");
-        model.trainModel(featureWords, trainSet);
-        HashMap<String, double[]> featureScores = model.loadModel("trainModel.txt");
-        model.predict(featureScores,testSet, featureWords);
+            BayesModel model = new BayesModel();
+            model.extractMajorWords(trainSet);
+            Set<String> featureWords = model.loadFeatureWords("feature words.txt");
+            model.trainModel(featureWords);
+            HashMap<String, double[]> featureScores = model.loadModel("trainModel.txt");
+            model.predict(featureScores,testSet, featureWords);
+        }
     }
 
     private List<CodeSnippet> readData(){
         List<CodeSnippet> codeSnippetList = new ArrayList<>();
         CodeSnippet codeSnippet;
         ResultSet ret;
-        String sql = "select * from code_snippet where Id < 1210";
+        String sql = "select * from code_snippets where Type <= 8 and Type >= 1";
         DBHelper dbHelper = new DBHelper(sql);
 
         try {
